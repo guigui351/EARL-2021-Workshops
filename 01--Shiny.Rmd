@@ -1,0 +1,220 @@
+---
+title: "EARL 2021 - Workshop 1: Introduction to Shiny"
+description: "Part 1 of the EARL 2021 - Workshops Session “Introduction to Shiny” by Mango Solution"
+author:
+  - name: Guillaume Abgrall
+    url: https://github.com/guigui351/EARL-2021-Workshops
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1.0 Introduction to Shiny
+The `shiny R package` allows us to develop interactive web applications directly from R. We can make our analysis, data models and reports available to anyone with a web
+browser, and enable our users to benefit from the power of the R language without having to know how to code. 
+
+Shiny is based entirely in R so we can use the same tools for analysis and graphics that we are already familiar with. 
+Shiny takes care of the web technologies behind the scenes, meaning we do not need to know HTML, JavaScript, CSS, etc. in order to produce great interactive apps.
+
+Shiny is developed and maintained by `RStudio`, the makers of the RStudio development environment. 
+
+RStudio host a Gallery of existing applications that is a great way to understand what shiny is capable of and to get inspiration for your apps.
+Check-out the [Shiny gallery](https://shiny.rstudio.com/gallery/)
+
+
+* We can run these examples using the `runExample()` function. Calling the function with
+no arguments displays the available examples:
+
+```{r shinyExample}
+library(shiny)
+runExample()
+```
+
+* We can run an example by providing its name as a string to the `runExample()` function
+
+```{r}
+library(shiny)
+#runExample("01_hello")
+```
+
+## 1.1 Inputs and Outputs
+
+In shiny we describe elements on the page as either **inputs** or **outputs**. 
+
+**Inputs** provide widgets for the user of our apps to interactive with, such as the slider widget. 
+**Outputs** are the results of our app that the user wants to see, such as the histogram above.
+
+We can look at the example files directly using the `find.package()` function to find the shiny package on disk, then navigate to the examples subfolder:
+
+```{r}
+find.package("shiny")
+```
+```{r}
+shiny::runExample("07_widgets")
+```
+
+## 2.0 Building a Basic App
+
+### 2.1 Overview
+
+In this chapter we will familiarize ourselves with the structure of a shiny application and then build our first application.
+
+### 2.2 Understanding an App’s Architecture
+
+Each app is constructed from two fundamental components:
+
+* The “User Interface” component
+  - Describes the app’s layout and appearance
+
+* The “Server” component:
+  - Describes the R code needed to create the outputs, e.g. how to make the histogram
+  - Describes how the input elements are connected to the output elements, e.g. how the slider is connected to the histogram
+  
+###  2.3 Creating an App
+
+We will create our own version of the interactive histogram we have seen already by
+building it up from basic components. In order to create a minimal shiny application we
+need to load the shiny library, define the user interface (UI) and define the server
+behaviour. We can do this in a new R script as follows:
+
+```{r}
+library(shiny)
+# Define the user interface component
+ui <- fluidPage()
+
+# Define the server component
+server <- function(input, output) {}
+
+# Combine the two components
+shinyApp(ui = ui, server = server)
+
+div()
+```
+
+
+
+#### 2.3.1 Saving Apps
+To work correctly the shiny application files need to adhere to specific naming
+conventions. We need to save our application file as “app.R” in order for it to be
+recognised as a shiny app.
+
+Since we can only give one name to our app file we cannot have more than one app in
+the same directory. Each app should be in its own directory, and we use the directory
+name to give names to each of our apps.
+
+For the minimal app above we would create a directory called `Minimal_App` and save
+`app.R` in it.
+
+We will be creating several apps throughout the course, so ensure you create a new
+directory each time you want to create a new app.
+
+# Exercice 1
+
+```{r}
+library(shiny)
+library(ggplot2)
+
+ui <- fluidPage(
+
+  numericInput("sampleSize", "Select size of data:", min = 10, max = 500, value = 100),
+  
+  textInput("col", label = "Plot Color", value = "red"),
+
+  plotOutput("hist"),
+  
+  textOutput("summary")
+)
+
+server <- function(input, output){
+
+  getSample <- reactive({
+    Sys.sleep(5)
+    data <- data.frame(x = rnorm(input$sampleSize)) 
+    return(data)
+  })
+
+  output$hist <- renderPlot({
+
+    ggplot(getSample(), aes(x)) + 
+      geom_histogram(bins = 20, color = "black", fill=input$col)
+
+    })
+  
+  output$summary <- renderPrint({
+    summary(getSample())
+  })
+}
+
+shinyApp(ui, server)
+```
+
+
+
+```{r}
+library(shiny)
+
+ui <- fluidPage(
+
+  titlePanel("Custom Grid Layout"),
+
+  fluidRow(
+
+    column(width = 12, plotOutput("hist")),
+    
+    ),
+  
+  fluidRow(
+
+    column(width = 4,
+           textInput("title", "Title:")),
+
+    column(width = 4,
+           selectInput("col", "Select plot colour:",
+                       choices = c("red", "blue", "orange"))),
+
+    column(width = 4,
+       textOutput("summary")
+         
+       )
+    )
+)
+
+server <- function(input, output) {
+  
+  getSample <- reactive({iris[,]})
+
+  output$hist <- renderPlot({
+
+    ggplot(getSample(), aes(Sepal.Length))+
+
+      geom_histogram(bins = input$bins, colour = "black",
+                     fill = input$col) + ggtitle(input$title) +
+      facet_grid(cols = vars(Species))
+
+    })
+
+  output$summary <- renderPrint({
+
+    paste0("Mean Length:", mean(iris[, "Sepal.Length"]))
+
+    })
+}
+
+shinyApp(ui = ui, server = server)
+```
+ 
+```{r}
+library(shinydashboard)
+
+ui <- dashboardPage(
+  dashboardBody(
+    dashboardHeader(title = "Test my App" ),
+    dashboardSidebar()
+  )
+)
+
+server 
+```
+

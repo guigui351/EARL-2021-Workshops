@@ -94,7 +94,6 @@ div()
 ```
 
 
-
 #### 2.3.1 Saving Apps
 To work correctly the shiny application files need to adhere to specific naming
 conventions. We need to save our application file as “app.R” in order for it to be

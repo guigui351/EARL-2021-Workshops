@@ -1,0 +1,895 @@
+---
+title: "EARL 2021 - Workshop 3: Functional Programming with purrr"
+description: "Part 3 of the EARL 2021 - Workshops Session “Functional Programming with purrr” by Mango Solution"
+author:
+  - name: Guillaume Abgrall
+    url: https://github.com/guigui351/EARL-2021-Workshops
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE)
+
+library(dplyr)
+```
+
+
+# 1. Functional Programming with purrr
+
+
+## 1.1 Recap: Basic Function Writing
+
+Just a quick reminder of how a function is constructed, although you will be introduced 
+to more ways of doing so e.g. a shorthand in `purr`, later.
+
+We define a function with the **function keyword**. This is followed by `()` and between 
+them the arguments to that function (if needed), and the body of the function – or what we want the function to do.
+
+```{r}
+adding_function <- function(x, y = 0){ 
+  x + y  
+} 
+
+adding_function(1:10)
+```
+
+Note that:
+* Defaults are defined with the arguments (y = 0)
+* The return value for the function should go on the last line
+* Any objects created inside the function will not exist outside of the function after it has been called
+
+### Exercice
+
+
+```{r}
+library(repurrrsive)
+
+# 1. How many elements are in the list?, Do the elements have names?
+length(gap_split)
+names(gap_split)
+
+# 1. Extract the data from the United Kingdom. What type of data is it?
+Uk_gap <- gap_split$`United Kingdom`
+str(Uk_gap)
+
+# 2. Write a function that, when given the data and a country name will calculate the mean life expectancy for that country.
+mean_life_expt <- function(input, country_name){
+  
+  input[["country_name"]] %>% 
+    purrr::pluck('lifeExp') %>% 
+    mean()
+}
+
+mean_life_expt(gap_split, 'United Kingdom')
+```
+
+
+## 1.2 What is Functional Programming?
+
+In a nutshell, **functional programming puts an emphasis on using functions to describe what we are doing 
+so that we can simplify the code that we write and more clearly understand what is happening**. 
+
+The best way to understand how it changes the way we write code and why it helps us is to consider an example.
+
+Suppose we are analysing the `gapminder` dataset that we saw above. 
+As part of our analysis we want to find the `year` in which each `country` had its maximum `life expectancy`. 
+
+We might do this for the first country as:
+
+```{r}
+library(dplyr) 
+library(repurrrsive)  
+
+gap_split <- gap_split
+
+gap_split[[1]] %>% 
+  filter(lifeExp == max(lifeExp)) %>% 
+  pull("year")
+```
+
+To obtain this for all countries we would then need to repeat this calculation 141 more times. 
+Copying and pasting this code would almost certainly result in a mistake at some 6 point, not to mention the impracticality. 
+
+Suppose we then wanted to find the `year` of the `maximum population`, we would need to edit our code 142 times to switch from life expectancy to population...
+
+Instead, we can write a function that takes our data and performs the calculation for us.
+
+```{r}
+max_year <- function(data){ 
+  data %>%  
+    filter(lifeExp == max(lifeExp)) %>% 
+    pull("year")
+} 
+
+max_year(gap_split[[1]])
+```
+
+This makes it very easy for us to now change our function to generate the year in which 
+a country had its maximum population but doesn't resolve the problem of potentially making mistakes in the countries. 
+
+To resolve this, we could use a loop: 
+
+```{r}
+years <- vector("numeric", length = length(gap_split)) 
+
+for(c in seq_along(gap_split)){
+  years[c] <- max_year(gap_split[[c]])
+}
+```
+
+However, *functional programming gives us a much more elegant way to solve this problem*. 
+
+We can use what is known as a **functional**. 
+This is a special type of function that *allows us to provide another function as an argument*,
+and effectively tell it to run the that function on all subsets of the data. 
+
+For example:
+
+```{r}
+library(purrr) 
+
+tail(map(gap_split, max_year)) # display five last country only
+
+unname(map_dbl(gap_split, max_year)) # display as the loop earlier in a numeric list
+```
+
+Throughout this course we will see a variety of the features of functional programming 
+and see what this really means for us, and how we can apply those ideas using the `purrr` package.
+
+
+## 1.3 Further Reading
+
+For more examples of using the `purrr` package and how it can help us with iteration look at the "`Iteration`" chapter of **R for Data Science** by *Hadley Wickham* and *Garrett Grolemund*.
+
+For more technical details on functional programming you may be interested in the Functional Programming section of Advanced R Programming.
+
+For a great overview of the core functions in the `purrr` package we would recommend downloading the **cheat sheet** from the RStudio website.
+
+
+
+# 2.Iteration and the purrr package
+
+
+## 2.1 Introduction
+
+Whilst there are a number of approaches to iteratively applying a function to lists in R, 
+including the `“apply family of functions”`, the **current state of the art is the `purrr` package**. 
+
+This package provides a consistent means of calling the iteration functions that also fits with the wider tidyverse packages.
+We will also be using the `repurrrsive` package for some example datasets that have been pre-structured to a form similar to how you may work with data with the purrr package.
+
+
+## 2.2 Iterating over each list element
+
+The core functions in the `purrr` package are the **“map family” of functions**. 
+
+They transform an input by applying a **function** to each *element* of a **list** or **atomic vector** and returning an object of the same length as the input.
+
+### 2.2.1 Extracting Named Elements
+
+As an example, let's suppose we want to extract the `life expectancy` data for each `country` from the split `gapminder` data.
+
+```{r}
+life_expectancy <- map(gap_split, "lifeExp") 
+length(life_expectancy) 
+```
+
+```{r}
+life_expectancy[[1]] # First country in the list, e.g Afghanistan
+life_expectancy$`United Kingdom`
+```
+
+
+In this example we have simply given the map function the name of the column that we want to extract 
+from each data frame and it has returned a new list. 
+
+The new list has 1 element for each country and this element contains a vector of the life expectancy data.
+
+### 2.2.2 Applying Functions
+
+Generally, we will want more flexibility than simply extracting elements from data. 
+
+Instead of passing a column name we can give a function name to apply to each list element. 
+In the context of functional programming, this makes `map` a functional.
+
+```{r}
+head(map(life_expectancy, max), 4)
+```
+
+> Again, this returns a list. This time the list contains only a single value as the max function returns only a single value.
+
+<h4> Exercice </h4>
+
+
+```{r, eval = TRUE}
+# 3. Using the split gapminder data:
+# a. Find the minimum value of the population for each country
+gap_split %>% map(function(x){
+  x[['pop']] %>% min()
+}) %>% tail(3)
+
+#  b. Calculate the variance of the GDP per capita
+gap_split %>% map(function(x){
+  x[['gdpPercap']] %>% var() 
+}) %>% tail(3)
+
+# 4. For each country, extract the value of the population in 1952.
+gap_split %>% map(function(x) {
+  x %>% 
+    filter(year == 1952) %>% 
+    pluck('pop')
+}) %>% head()
+
+# 5. Which country had the lowest population in 1952? (hint: take a look at which.min)
+gap_split  %>% 
+  map_dbl(function(x) {
+    x %>% 
+      filter(year == 1952) %>% 
+      pluck('pop')
+  }) %>% 
+  which.min()
+```
+
+### 2.2.3 Passing Additional Arguments
+
+Sometimes we will want to pass additional arguments to our functions, for example if there are 
+missing values in our data we may want to use the na.rm argument when finding the mean or maximum. 
+
+We can pass additional arguments by simply naming them after the function name in our map call.
+
+```{r}
+tail(map(life_expectancy, quantile, probs = c(0.05, 0.95)),6)
+```
+
+
+## 2.3 Applying Custom Functions
+
+In the previous two sections we were able to calculate the maximum life expectancy for each country, 
+but we had to run the map function twice. Once to extract the correct column and then again to apply the function.
+
+We can simplify this by writing our own function to calculate the maximum life expectancy.
+
+```{r}
+max_life <- function(data){
+  max(data$lifeExp)
+}
+
+tail(map(gap_split, max_life))
+```
+
+Whilst this is reasonable – and especially in the case that the function is long, 
+the `purrr` package does allow us to take some shortcuts. We can define a function in `purrr` using a special formula notation.
+
+```{r}
+tail(map(gap_split, ~ max(.$lifeExp)))
+```
+
+This notation looks a little strange at first, but it is a **convenient way of not having to define a complete function for simple cases**. 
+At the front we use the usual formula notation "~". Inside our simplified function definition, we use the shortcut "." to refer to the list element.
+In functional programming, an unnamed function such as this, is known as an anonymous function. 
+
+> The ability to work with unnamed functions is one of the characteristics of functional programming.
+
+<h4> Exercice </h4>
+
+```{r eval = TRUE}
+# 1. Write a function that will:
+# a. Take a data frame as input
+# b. Return the year in which the lowest population value occurred
+# c. Returns the year as a single integer value
+get_year_of_low_pop <- function(input) {
+  pop <- input[['pop']]
+  idx <- which.min(pop)
+  input[['year']][[idx]]
+}
+
+
+# 2. Run this function on the split gapminder data to find the year that each country had its lowest population.
+gap_split %>% map(function(x) {
+    get_year_of_low_pop
+}) %>% tail()
+
+# 3. Re-write this code to use the purrr shortcuts
+gap_split %>% map(get_year_of_low_pop) %>% tail()
+
+# Extension
+# 4. Which country had its lowest population most recently? 
+gap_split %>% 
+  map_int(get_year_of_low_pop) %>% 
+  which.max()
+
+tmp <- gap_split %>% 
+  map_int(get_year_of_low_pop) %>% 
+  which.max() %>%  names()
+
+gap_split[[tmp]]
+```
+
+
+
+## 2.4 Simplifying Output
+
+In the examples that we have seen so far, the map function has returned a list, 
+even though for each country we have only returned a single value – it may be more useful to return them in a vector instead.
+
+There is a collection of functions that make up the map family and allow us to return specific output types.
+
+|**Function**| **Return Type**  |
+|:-----------| :---------------:|
+|map         | list             |
+|map_chr     | character vector |
+|map_dbl     | numeric vector   |
+|map_df      | data frame       |
+|map_int     | integer vector   |
+|map_lgl     | logical vector   |
+
+```{r}
+map_dbl(gap_split, ~ max(.$lifeExp)) %>% head()
+```
+
+```{r}
+# 1. Find the average life expectancy for each country, storing the output in a numeric vector
+life_exp_vec <- gap_split %>%  map_dbl(function(x) {
+  x[['lifeExp']] %>%  mean()
+})
+
+life_exp_vec %>% head()
+```
+
+```{r eval = FALSE}
+# 2. Can you store the output in an integer vector?
+life_exp_vec <- gap_split %>% map_int(function(x) {
+  x[['lifeExp']] %>% mean()
+})
+
+# Draw an ERROR: Error: Can't coerce element 1 from a double to a integer
+```
+
+A useful feature of these functions is that if the output of the function cannot be represented in the type requested, 
+because *it can't be converted to that type*, or *it is too long an output type*, the function will simply result in **error**.
+
+```{r eval = FALSE}
+map_lgl(gap_split, ~ max(.$lifeExp))
+
+# Draw an ERROR: Error: Can't coerce element 1 from a double to a logical
+```
+
+```{r eval = FALSE}
+map_dbl(gap_split, ~ range(.$lifeExp))
+
+# Draw an ERROR: Error: Result 1 must be a single double, not a double vector of length 2
+```
+
+This reduces the chances of unexpected output, e.g. if anything other than logical values would 
+indicate issues in previous code it would be caught and dealt with properly, instead of masked inside a list.
+
+```{r}
+library(stringr) 
+library(purrr) 
+
+sentences <- c( "My head is not functional", "Programming is hard", "Too many rules" ) 
+
+getLongestWord <- function(words) {
+  word_counts <- str_length(words) 
+  longest_word <- words[which.max(word_counts)] 
+  return(longest_word) 
+} 
+
+sentences %>% 
+  toupper() %>% 
+  str_split(' ') %>%
+  map_chr(getLongestWord) %>% 
+  str_c(collapse = ' ')
+```
+
+
+
+# 3. Working with Lists
+
+
+## 3.1 Introduction
+
+The `purrr` package not only allows us to apply functions to list elements but
+it also includes a range of functions to allow us to easily work with lists in 
+ways that we may a data frame. 
+
+For example, allowing us to *filter*, *transform* and *join* to lists.
+
+
+## 3.2 Filtering List Elements
+
+So far, we have worked with all the data in our list, but suppose we were only interested 
+in a subset of all the available data. 
+
+To extract a single list element we can use the `pluck` function. 
+We can use this to extract by **name** or **index** and by providing multiple names or positions.
+
+```{r}
+pluck(gap_split, "United Kingdom")
+```
+
+This can be useful to focus in on a small section of the data, but what if we wanted to
+collect all the elements that satisfied some criteria (the equivalent of **dplyr's** `filter`). 
+
+For this we can use either `keep` or `discard.`
+Both functions allow you to create a logical test, just like in `dplyr::filter`. 
+
+The keep function will then retain elements that satisfy the criteria, while discard will remove elements that satisfy the criteria.
+
+```{r}
+is_europe <- function(data){
+  unique(data$continent) == "Europe"
+}
+
+europe <- keep(gap_split, is_europe)
+
+tail(names(europe))
+
+other_continent <- discard(gap_split, is_europe)
+
+tail(names(other_continent))
+```
+
+
+## 3.3 Joining Lists
+
+Just as with data in a rectangular, data frame structure, we will often have a need to join to a list. 
+
+The `purrr` package contains some useful functions that will allow us not only to add elements to an existing list, 
+but also specify where in the list they will be added.
+
+The two functions we can use are `append`, for **adding after an existing element**, and `prepend`, for **adding before an existing element**.
+
+```{r}
+uk <- pluck(gap_split, "United Kingdom")
+
+updated_gap <- prepend(gap_split, values = list("UK" = uk))
+
+tail(names(updated_gap))
+```
+
+- Transposing Lists
+
+At times it can be more convenient to work with a transposed version of the list rather than the original version. 
+The transpose function lets us invert a list.  In the case of the `gapminder` data this will give us list elements 
+for each column of the data (`country`, `life expectancy`, `population` etc.), each containing list elements for each country.
+
+```{r}
+names(gap_split) %>% head(6)
+```
+
+```{r}
+invert <- transpose(gap_split)
+
+names(invert)
+```
+
+```{r}
+pluck(invert, "lifeExp", "United Kingdom")
+```
+
+<h4> Exercice </h4>
+
+```{r eval = TRUE}
+# 1. Write a function to test if the life expectancy for the most recent year is the maximum life expectancy. The function should return TRUE (when life expectancy in 2007 is the maximum) or FALSE.
+is_most_recent <- function(input) {
+  rec_life_exp <- input  %>% 
+    filter(year == max(year, na.rm = TRUE)) %>% 
+    pluck('lifeExp')
+  
+  max_life_exp <- input[['lifeExp']] %>%  max(na.rm = TRUE)
+  
+  rec_life_exp == max_life_exp
+}
+
+# 2. Test your function on the data for Botswana and the data for Denmark.
+is_most_recent(gap_split[['Botswana']])
+is_most_recent(gap_split[['Denmark']])
+
+# 3. Filter the split gapminder data to return only elements where the life expectancy in 2007 is not it's highest life expectancy.  
+not_most_rec <- gap_split %>% 
+  map_lgl(is_most_recent)
+
+gap_split %>% 
+  discard(not_most_rec) %>% 
+  names()
+
+# Extension Questions
+# 4. Use appropriate map functions to return the maximum life expectancy for each of these countries and their life expectancy in 2007.
+pop_comparison <- function(input) {
+  life_exp_max <- max(
+    input[['lifeExp']],
+    na.rm = TRUE)
+  
+  life_exp_2007 <- input %>% 
+    filter(year == 2007) %>% 
+    pluck('lifeExp')
+  
+  data.frame(
+    le_max = life_exp_max,
+    le_2007 = life_exp_2007
+  )
+}
+
+gap_split %>% 
+  map_dfr(
+    pop_comparison,
+    .id = 'country') %>% 
+  mutate(
+    delta = le_2007 /  le_max - 1
+    ) %>% 
+  tail()
+```
+
+
+
+# 4. The Wider Map Family
+
+
+## 4.1 Introduction
+
+Once you get into the habit of working with lists and applying functions across them 
+with the map family of functions you will quickly realise you have a need to apply across
+two or more lists at the same time or for functions that don't specifically produce an output. 
+
+We can use a wider family of functions included in purrr to do this.
+
+```{r}
+library(tidyr) 
+library(ggplot2)
+```
+
+
+## 4.2 Applying across Multiple Lists
+When it comes to using two or more lists as the inputs for our functions, there are two families of functions for doing this in purrr.
+
+|Function| Usage                          |
+|:-------| :------------------------------|
+|map2    | Apply a function across 2 lists|
+|pmap    | Apply a function across any number of lists (“p” for parallel)|
+
+Both of these functions have the same range of output options as the map function, defined in the same way, e.g. `map2_chr.`
+
+
+```{r}
+means <- rep(0:5, each = 2)
+sds <- rep(c(1, 2), times = 6)
+means <- set_names(means, nm = LETTERS[1:12])
+
+normData <- map2_df(means, sds, rnorm, n = 100) 
+
+normData %>% 
+  pivot_longer(col = everything(), 
+               names_to = "Simulation", 
+               values_to = "Value") %>% 
+  qplot(Value, data = ., geom = "density", group = Simulation)
+```
+
+> Until now we have only used lists as the input to map functions but we can also provide vectors as we have in this example.
+
+One thing to note when we are applying functions to multiple lists is how we specify each of the lists 
+when we define our own functions using the `purrr` shotcuts. 
+
+- For the map2 function we can simply use ".x" and ".y"
+
+```{r}
+map2_df(means, sds, ~rnorm(n = 100, mean = .x, sd = .y))
+```
+
+- For pmap we use "..p", where p is the number of the list element.
+
+```{r}
+n <- sample(c(5, 10, 100), 12, replace = TRUE)
+
+pmap(list(means, sds, n), ~rnorm(n = ..3, mean = ..1, sd = ..2))
+```
+
+
+
+## 4.3 Side Effects
+
+All of the examples we have considered so far have been applying functions that will return
+the result of some calculation, such as the maximum. 
+
+But we may want to use a list to generate other types of output such as graphics. 
+When the output we are interested in is not a value that is returned but some other action, 
+like creating a graphic, printing to the screen or saving files, we consider this to be a side effect.
+
+
+If we are interested in side effects we use the `walk` functions rather than `map.` 
+Just like map there are **variants** of `walk` for applying over *two* (`walk2`) or *more* (`pwalk`) lists. 
+
+> !However, as we don't use walk for its return values, there are no equivalents to the `map_*` functions.
+
+```{r}
+plotLifeExpectancy <- function(data) {
+  country <- unique(data$country) 
+  p <- qplot(x = year, y = lifeExp, data = data, main = country, geom = "line") 
+  print(p)
+} 
+
+pdf("LifeExpectancyPlots.pdf")
+walk(gap_split, plotLifeExpectancy)
+dev.off()
+```
+
+<h4> Exercice </h4>
+
+```{r eval = TRUE}
+# 1. Write a function that:
+# a. Takes a vector of life expectancies for a single country and the name of the country
+# b. Prints to the screen the name of the country and the maximum life expectancy (e.g. "The maximum for United Kingdom is â¦")
+country_max_life_exp <- function(life_exp, country_name) {
+  paste0(
+    'The maximum for ',
+    country_name, ' is ',
+    max(life_exp, na.rm = TRUE)
+  )
+}
+
+# 2. Create:
+# a. a list containing only life expectancy values for all countries in the gapminder data
+ls_life_exp <- gap_split  %>%  map('lifeExp')
+
+# b. a list of the country names in the gapminder data
+ls_country_names <- gap_split %>% names() %>% as.list()
+
+# 3. Apply your function over the list of life expectancies and countries
+map2(ls_life_exp, ls_country_names, country_max_life_exp) %>% head()
+
+list(
+  life_exp = ls_life_exp,
+  country_names = ls_country_names
+) %>%
+  pmap(function(life_exp, country_names) {
+    country_max_life_exp(life_exp, country_names)
+  }) %>% tail()
+```
+
+
+
+## 4.4 Using the Index
+
+In the examples above we have carefully contructed our problem so that we were able to 
+extract the country name to use in our output, either as a title to a plot or as part of the printed output.
+
+We have done this in two ways above:
+
+- one making use of the fact that the country was repeated in the data and
+- once passing a second list. 
+
+**But this can be quite inconvenient, or impractical**. 
+
+> Thankfully there are shortcuts to this in `purrr`, through a series of functions `imap` and `iwalk.`
+
+```{r}
+plotLifeExpectancy <- function(data, country) {
+  p <- qplot(x = year, y = lifeExp, data = data, main = country, geom = "line") 
+  print(p) 
+} 
+
+pdf("LifeExpectancyPlotsWithCountry.pdf")
+
+iwalk(gap_split, plotLifeExpectancy)
+
+dev.off()
+```
+
+<h4> Exercice </h4>
+
+
+```{r eval = TRUE}
+# 1. Write a function that:
+# a. Takes a vector of life expectancies for a single country and the name of the country
+# b. Prints to the screen the name of the country and the maximum life expectancy (e.g. "The maximum for United Kingdom is â¦")
+country_max_life_exp_v2 <- function(life_exp, country_name) {
+  output_string <- paste0(
+    'The maximum for ',
+    country_name, ' is ',
+    max(life_exp, na.rm = TRUE)
+  )
+  
+  print(output_string)
+}
+
+# 2. Apply your function over the list of life expectancies using the iwalk function.
+gap_split %>% 
+  map('lifeExp') %>% 
+  iwalk(country_max_life_exp_v2) %>% 
+  head(8)
+```
+
+
+
+# 5. Nested Data
+
+
+## 5.1 Introduction
+
+There are many instances when we are working with the map family of functions that it is to apply functions across 
+sub-groups of data-frames. 
+
+For example, in the gapminder data we are generally applying functions for each country, where the data for each country is a data frame. 
+Rather than convert our data frame into a list we can instead maintain the data frame structure using nested data frames.
+
+```{r}
+# library(tidyverse)
+library(repurrrsive)
+library(modelr)
+library(broom)
+```
+
+## 5.2 Nested Data Frames
+A nested data frame is one in which we store data frames within data frames. 
+
+As an example consider the nested version of the gapminder data frame in the repurrrsive package.
+
+```{r}
+head(gap_nested, 12)
+```
+Here you can see that we have only one row for each country. The remaining data for each country is stored in the data column. 
+
+Rather than containing individual values, this column contains a series of data frames, or specifically tibbles.
+We can interact with this data frame in the usual way, and use the `unnest` function to extract the data stored in a particular cell.
+
+```{r}
+library(tidyr)
+gap_nested %>% 
+  filter(country == "United Kingdom") %>% 
+  select(data) %>% 
+  unnest(cols = c(data))
+```
+
+
+## 5.3 Mutate and Map
+
+Whilst much of what we have seen so far can still be used when we are working with nested data, 
+the main point to remember is that we will now, generally, want to **map over the column that contains the data frames**.
+
+```{r}
+map(gap_nested$data, "lifeExp") %>% tail(3)
+```
+
+For this reason, and so that we can keep all of the results with the corresponding rows of the data frame, 
+we typically work with map in combination with mutate.
+
+
+```{r}
+gap_nested %>%
+  mutate(max_life = map_dbl(data, ~max(.$lifeExp))) %>% 
+  tail(10)
+```
+
+> Note the use of map_dbl in the example above. This ensures that a numeric vector is returned so we see the output as numeric values. Using map would instead return a list.
+
+```{r}
+# 1. Using the nested gapminder data:
+# a. Find the minimum value of the population for each country
+# b. Calculate the variance of the GDP per capita
+gap_nested %>% 
+  mutate(
+    min_pop = map_dbl(data, ~ min(.[['pop']])),
+    var_gdp = map_dbl(data, ~ var(.[['gdpPercap']]))
+  ) %>% 
+tail()
+ 
+# Extension Questions
+# 2. For each country, extract the value of the population in 1952.
+get_pop_year <- function(input, target_year) {
+  input %>% 
+    filter(year == target_year) %>% 
+    pluck('pop')
+}
+gap_nested %>% 
+  mutate(
+    pop_1952 = map_dbl(
+      data, ~ get_pop_year(., 1952))
+  ) %>% head(10)
+
+# 3. Which country had the lowest population in 1952?
+gap_nested_pop_year <- gap_nested %>% 
+  mutate(
+    pop_1952 = map_dbl(
+      data, ~ get_pop_year(., 1952))
+  )
+
+gap_nested_pop_year %>% 
+  select(country, pop_1952) %>% 
+  arrange(pop_1952) %>% 
+  head()
+# alternativelly ...
+#gap_nested_pop_year[['country']][which.min(gap_nested_pop_year[['pop_1952']])]
+  
+idx <- gap_nested_pop_year[['pop_1952']] %>% 
+  which.min()
+
+gap_nested_pop_year[['country']][[idx]]
+```
+
+## 5.4 Map for Modelling & Simulation
+
+One of the great uses for the **map family of functions and nested data** is in *modelling and simulation*. 
+
+In particular in any situation where there is a need to run a model on multiple sets of data, be that subsets of a datasets (like countries in the gapminder data) or bootstrap samples.
+
+```{r}
+gap_model <- gap_nested %>% 
+  mutate(model = map(data, ~lm(lifeExp ~ year, data = .x)))
+
+gap_model %>% head()
+```
+
+We can see that this returns an **updated nested data frame**, where the model column now contains the *entire linear model fit for the given country*.
+By continuing to **make use of the map functions we can extract information about the model**.
+
+```{r}
+gap_model %>% 
+  transmute(country, fit = map(model, glance)) %>%
+  unnest(cols = c(fit))
+```
+> The packages `modelr` and `broom` provide a series of useful functions for generating tidy model output including metrics, coefficients, residuals and predictions.
+
+Once we have the information that we want we can use `unnest`, as we did above, 
+to get the data back into a format that we can easily use for other tasks, such as visualisation.
+
+```{r}
+gap_fit <- gap_model %>% 
+  mutate(residuals = map2(data, model, add_residuals)) %>% 
+  unnest(residuals) 
+
+ggplot(data = gap_fit, aes(year, resid)) +
+  geom_line(alpha = 0.5, aes(group = country)) + 
+  facet_wrap(~ continent)
+```
+
+
+## 5.5 Converting to Nested Data
+
+To create nested data we need to use the nest function, from the tidyr package.
+We can use this function alone, but it is generally clearer to see how we are nesting when used in combination with group_by.
+
+```{r}
+iris %>% 
+  group_by(Species) %>% 
+  nest()
+```
+
+We can group by multiple variables by **simply passing more variables** to `group_by`, and **all remaining columns will be nested**.
+
+<h4> Exercice </h4>
+
+```{r}
+# 1. Starting with the gap_simple data, convert to a nested data frame, grouping by continent. 
+gap_simple %>% 
+  group_by(continent) %>% 
+  nest()
+
+# 2. For each continent, fit a single linear model for life expectancy
+gap_simple %>% 
+  group_by(continent) %>% 
+  nest() %>% 
+  mutate(
+    model = map(data, ~ lm(
+      data = ., formula = lifeExp ~ year + pop + gdpPercap
+    ))
+  )
+
+# 3. Add a column containing the model metrics to the nested data
+out <- gap_simple %>% 
+  group_by(continent) %>% 
+  nest() %>% 
+  mutate(
+    model = map(data, ~ lm(
+      data = ., formula = lifeExp ~ year + pop + gdpPercap
+    )),
+    model_metrics = map(model, glance)
+  )
+
+# additionally ...
+out %>% 
+  mutate(adj_rsqr = map_dbl(model_metrics, 'adj.r.squared'))
+  
+out %>% 
+  unnest(cols = c(model_metrics))
+```
+
